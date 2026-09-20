@@ -239,7 +239,10 @@ function App() {
     setApiError('')
 
     try {
-      const response = await fetch('/api/learning-path', {
+      const apiBaseUrl = import.meta.env.PROD
+        ? 'https://learning-path-ccf33d9f073a.herokuapp.com'
+        : ''
+      const response = await fetch(`${apiBaseUrl}/api/learning-path`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
