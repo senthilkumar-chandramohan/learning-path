@@ -196,7 +196,7 @@ export function extractJsonResponse(raw: string): LearningPathResponse {
   return parsed
 }
 
-export async function generateLearningPath(payload: LearningPathRequest): Promise<LearningPathResponse> {
+export async function* streamLearningPathText(payload: LearningPathRequest): AsyncGenerator<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured.')
@@ -211,12 +211,27 @@ export async function generateLearningPath(payload: LearningPathRequest): Promis
     apiKey,
   })
 
-  const modelResponse = await llm.invoke(buildLearningPathPrompt(payload))
-  const rawContent = typeof modelResponse.content === 'string'
-    ? modelResponse.content
-    : Array.isArray(modelResponse.content)
-      ? modelResponse.content.map((part) => typeof part === 'string' ? part : part?.text ?? '').join('')
-      : String(modelResponse.content ?? '')
+  const stream = await llm.stream(buildLearningPathPrompt(payload))
+
+  for await (const chunk of stream) {
+    const chunkText = typeof chunk.content === 'string'
+      ? chunk.content
+      : Array.isArray(chunk.content)
+        ? chunk.content.map((part) => typeof part === 'string' ? part : part?.text ?? '').join('')
+        : String(chunk.content ?? '')
+
+    if (chunkText) {
+      yield chunkText
+    }
+  }
+}
+
+export async function generateLearningPath(payload: LearningPathRequest): Promise<LearningPathResponse> {
+  let rawContent = ''
+
+  for await (const chunk of streamLearningPathText(payload)) {
+    rawContent += chunk
+  }
 
   return extractJsonResponse(rawContent)
 }

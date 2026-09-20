@@ -1,12 +1,27 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
-import { generateLearningPath } from './learning-path.js'
+import { streamLearningPathText } from './learning-path.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
 
-app.use(cors({ origin: true, credentials: true }))
+const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+      return
+    }
+
+    callback(new Error(`Origin ${origin} not allowed by CORS.`))
+  },
+  credentials: true,
+}))
 app.use(express.json())
 
 app.get('/api/health', (_request, response) => {
@@ -15,19 +30,35 @@ app.get('/api/health', (_request, response) => {
 
 app.post('/api/learning-path', async (request, response) => {
   try {
-    const payload = request.body ?? {}
-    const learningPath = await generateLearningPath({
-      objective: String(payload.objective ?? ''),
-      outcome: String(payload.outcome ?? ''),
-      timeframe: Number(payload.timeframe ?? 0),
-      timeframe_unit: String(payload.timeframe_unit ?? ''),
-      hours_per_day: Number(payload.hours_per_day ?? 0),
-      frequency: String(payload.frequency ?? ''),
-      start_date: String(payload.start_date ?? ''),
-      learning_medium: String(payload.learning_medium ?? ''),
-    })
+    const {
+      objective = '',
+      outcome = '',
+      timeframe = 0,
+      timeframe_unit = '',
+      hours_per_day = 0,
+      frequency = '',
+      start_date = '',
+      learning_medium = '',
+    } = request.body ?? {}
 
-    response.json(learningPath)
+    response.setHeader('Content-Type', 'application/json; charset=utf-8')
+    response.setHeader('Cache-Control', 'no-cache')
+    response.setHeader('Connection', 'keep-alive')
+
+    for await (const chunk of streamLearningPathText({
+      objective: String(objective),
+      outcome: String(outcome),
+      timeframe: Number(timeframe),
+      timeframe_unit: String(timeframe_unit),
+      hours_per_day: Number(hours_per_day),
+      frequency: String(frequency),
+      start_date: String(start_date),
+      learning_medium: String(learning_medium),
+    })) {
+      response.write(chunk)
+    }
+
+    response.end()
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to generate the learning path.'
     response.status(500).json({ error: message })

@@ -218,6 +218,21 @@ function App() {
     input.showPicker()
   }
 
+  function parseStreamedLearningPath(raw: string): LearningPathResponse {
+    const candidate = raw.trim()
+    const fencedMatch = candidate.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+    const sanitized = fencedMatch ? fencedMatch[1].trim() : candidate
+    const startIndex = sanitized.indexOf('{')
+    const endIndex = sanitized.lastIndexOf('}')
+
+    if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+      throw new Error('Unable to parse the streamed learning path response.')
+    }
+
+    const jsonText = sanitized.slice(startIndex, endIndex + 1)
+    return JSON.parse(jsonText) as LearningPathResponse
+  }
+
   async function createPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsCreatingPlan(true)
@@ -241,7 +256,21 @@ function App() {
 
       if (!response.ok) throw new Error('Unable to chart this path')
 
-      const learningPath = await response.json() as LearningPathResponse
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Streaming response is not available.')
+
+      const decoder = new TextDecoder()
+      let streamedText = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        streamedText += decoder.decode(value, { stream: true })
+      }
+
+      streamedText += decoder.decode()
+
+      const learningPath = parseStreamedLearningPath(streamedText)
       const nextId = Number(String(Date.now()).slice(-6))
       const tileColors = ['coral', 'lime', 'blue', 'violet']
       const chapters = learningPath.chapters.map((chapter, chapterIndex) => ({
@@ -456,7 +485,6 @@ function App() {
             <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
               {darkMode ? 'LIGHT' : 'DARK'}
             </button>
-            <button className="options-button" type="button" onClick={() => setIsOptionsModalOpen(true)}>OPTIONS</button>
           </div>
         </nav>
         {quizModalChapter && (() => {
