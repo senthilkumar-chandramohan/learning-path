@@ -44,6 +44,9 @@ app.post('/api/learning-path', async (request, response) => {
     response.setHeader('Content-Type', 'application/json; charset=utf-8')
     response.setHeader('Cache-Control', 'no-cache')
     response.setHeader('Connection', 'keep-alive')
+    if (typeof response.flushHeaders === 'function') {
+      response.flushHeaders()
+    }
 
     for await (const chunk of streamLearningPathText({
       objective: String(objective),
