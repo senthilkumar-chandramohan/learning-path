@@ -1,0 +1,20 @@
+@baseUrl = http://localhost:3000
+
+### API health check
+GET {{baseUrl}}/api/health
+Accept: application/json
+
+### Generate a learning path
+POST {{baseUrl}}/api/learning-path
+Content-Type: application/json
+
+{
+	"objective": "Blockchain",
+	"outcome": "a Blockchain Architect",
+	"timeframe": 6,
+	"timeframe_unit": "months",
+	"hours_per_day": 2,
+	"frequency": "every day",
+	"start_date": "2026-09-10",
+	"learning_medium": "Videos Only"
+}

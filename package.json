@@ -1,0 +1,34 @@
+{
+  "name": "learning-path",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace client\" \"npm run dev:server\"",
+    "dev:server": "tsx watch src/index.ts",
+    "build": "npm run build --workspace client && npm run build:server",
+    "build:server": "tsc -p tsconfig.json",
+    "typecheck": "npm run typecheck --workspace client && npm run typecheck:server",
+    "typecheck:server": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/index.js",
+    "install:all": "npm install --workspaces",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@langchain/openai": "^0.3.17",
+    "@types/node": "^26.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.1",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
