@@ -196,6 +196,25 @@ export function extractJsonResponse(raw: string): LearningPathResponse {
   return parsed
 }
 
+function normalizeContentText(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (Array.isArray(content)) {
+    return content.map((part) => normalizeContentText(part)).join('')
+  }
+
+  if (content && typeof content === 'object') {
+    const maybeText = content as { text?: unknown }
+    if (typeof maybeText.text === 'string') {
+      return maybeText.text
+    }
+  }
+
+  return ''
+}
+
 export async function* streamLearningPathText(payload: LearningPathRequest): AsyncGenerator<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -214,11 +233,7 @@ export async function* streamLearningPathText(payload: LearningPathRequest): Asy
   const stream = await llm.stream(buildLearningPathPrompt(payload))
 
   for await (const chunk of stream) {
-    const chunkText = typeof chunk.content === 'string'
-      ? chunk.content
-      : Array.isArray(chunk.content)
-        ? chunk.content.map((part) => typeof part === 'string' ? part : part?.text ?? '').join('')
-        : String(chunk.content ?? '')
+    const chunkText = normalizeContentText(chunk.content)
 
     if (chunkText) {
       yield chunkText
