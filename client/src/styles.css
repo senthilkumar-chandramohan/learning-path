@@ -92,7 +92,9 @@ h2 { font-size: clamp(3rem, 6vw, 5.6rem); }.plan-grid { display: grid; grid-temp
 .progress-bar { height: 3px; margin-top: 12px; background: rgba(32, 32, 29, .25); }
 .progress-bar span { display: block; height: 100%; background: #20201d; }
 .add-card { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; border: 1px dashed var(--line); background: transparent; }.add-card > span { margin-bottom: 26px; color: var(--coral); font-size: 3rem; font-weight: 300; }.add-card strong { font-size: 1.1rem; }.add-card small { margin-top: 8px; color: var(--muted); }
-footer { display: flex; justify-content: space-between; padding: 22px 42px 30px; border-top: 1px solid var(--line); color: var(--muted); font-family: 'DM Mono', monospace; font-size: .62rem; } footer b { color: var(--coral); font-size: 1rem; }
+footer { display: flex; justify-content: space-between; padding: 22px 42px 30px; border-top: 1px solid var(--line); color: var(--muted); font-family: 'DM Mono', monospace; font-size: .62rem; }
+.footer-link { color: var(--ink); text-decoration: none; font-family: 'DM Mono', monospace; font-size: .68rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.footer-link b { color: var(--coral); font-size: 1rem; }
 .detail-screen { padding: 44px 42px 100px; }
 .detail-toolbar { margin-bottom: 12px; }
 .back-link { border: 0; padding: 0; color: var(--muted); background: transparent; font-family: 'DM Mono', monospace; font-size: .7rem; text-transform: uppercase; }

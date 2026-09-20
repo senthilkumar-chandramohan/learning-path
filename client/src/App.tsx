@@ -728,7 +728,7 @@ function App() {
           <button className="add-card" onClick={() => document.querySelector('.objective-form')?.scrollIntoView({ behavior: 'smooth' })}><span>+</span><strong>Start a new path</strong><small>Turn the next idea into motion</small></button>
         </div>
       </section>
-      <footer><span>LEARNING/PATH © 2026</span><span>MAKE IT COUNT <b>↗</b></span></footer>
+      <footer><span>LEARNING/PATH © 2026</span><a className="footer-link" href="https://github.com/senthilkumar-chandramohan" target="_blank" rel="noreferrer">MAKE IT COUNT <b>↗</b></a></footer>
     </main>
   )
 }
