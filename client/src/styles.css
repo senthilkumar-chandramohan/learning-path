@@ -43,6 +43,40 @@ button { cursor: pointer; }
   color: var(--ink);
   border-radius: 0;
 }
+.options-subsection {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.options-subheader {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: .64rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.options-actions {
+  display: grid;
+  gap: 10px;
+}
+.secondary-button {
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  background: transparent;
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.options-message {
+  margin: 18px 0 0;
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: .64rem;
+  line-height: 1.5;
+}
 .modal-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(18, 19, 16, 0.65); z-index: 10; }
 .builder-section { padding: 72px 42px 90px; border-bottom: 1px solid var(--line); }
 .section-marker, .overline, .card-label, .map-label, .stat-block span { color: var(--muted); font-family: 'DM Mono', monospace; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
@@ -66,7 +100,15 @@ em { color: var(--coral); font-style: normal; }
 .primary-button:disabled { cursor: wait; opacity: .6; }
 .primary-button span { font-size: 1.2rem; }.create-button { margin-top: 50px; }
 .api-error { margin: 18px 0 0; color: var(--coral); font-family: 'DM Mono', monospace; font-size: .72rem; }
-.paths-section { padding: 74px 42px 100px; }.section-header { display: flex; align-items: end; justify-content: space-between; margin-bottom: 34px; }.section-header .section-marker { margin-bottom: 20px; }
+.paths-section { padding: 74px 42px 100px; }
+.section-divider {
+  width: 100%;
+  height: 1px;
+  margin: 28px 0 36px;
+  background: var(--line);
+  border: 0;
+}
+.section-header { display: flex; align-items: end; justify-content: space-between; margin-bottom: 34px; }.section-header .section-marker { margin-bottom: 20px; }
 h2 { font-size: clamp(3rem, 6vw, 5.6rem); }.plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .plan-card, .add-card { min-height: 310px; border: 0; padding: 24px; color: var(--ink); text-align: left; transition: transform .2s; }.plan-card:hover, .add-card:hover { transform: translateY(-5px); }
 .plan-card { display: flex; flex-direction: column; }

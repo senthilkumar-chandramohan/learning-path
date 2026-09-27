@@ -169,8 +169,8 @@ function App() {
   const [plans, setPlans] = useState<Plan[]>(() => getStoredPlans())
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [darkMode, setDarkMode] = useState(true)
-  const [objective, setObjective] = useState('Blockchain')
-  const [outcome, setOutcome] = useState('a Blockchain Architect')
+  const [objective, setObjective] = useState('Guitar')
+  const [outcome, setOutcome] = useState('a Musician')
   const [timeframe, setTimeframe] = useState('6')
   const [unit, setUnit] = useState('months')
   const [hours, setHours] = useState('2')
@@ -185,7 +185,9 @@ function App() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, Record<number, number>>>(() => getStoredQuizState().answers)
   const [quizResults, setQuizResults] = useState<Record<string, QuizResult>>(() => getStoredQuizState().results)
   const [quizError, setQuizError] = useState('')
+  const [optionsMessage, setOptionsMessage] = useState('')
   const dateInputRef = useRef<HTMLInputElement>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const savedPreference = window.localStorage.getItem('learning-path-content-preference')
@@ -216,6 +218,71 @@ function App() {
     if (!input) return
 
     input.showPicker()
+  }
+
+  function exportPlansAsJson() {
+    if (plans.length === 0) {
+      setOptionsMessage('There are no paths to export yet.')
+      return
+    }
+
+    const blob = new Blob([JSON.stringify(plans, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `learning-paths-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setOptionsMessage('Paths exported successfully.')
+  }
+
+  function importPlansFromJson(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result ?? ''))
+        if (!Array.isArray(parsed)) {
+          throw new Error('Invalid JSON import format.')
+        }
+
+        const mergedPlans = [...plans]
+
+        parsed.forEach((importedPlan) => {
+          if (!importedPlan || typeof importedPlan !== 'object' || typeof importedPlan.id !== 'number') {
+            return
+          }
+
+          const existingIndex = mergedPlans.findIndex((plan) => plan.id === importedPlan.id)
+          if (existingIndex >= 0) {
+            mergedPlans[existingIndex] = importedPlan as Plan
+            return
+          }
+
+          mergedPlans.push(importedPlan as Plan)
+        })
+
+        setPlans(mergedPlans)
+        setSelectedPlan((currentPlan) => {
+          if (!currentPlan) {
+            return currentPlan
+          }
+
+          return mergedPlans.find((plan) => plan.id === currentPlan.id) ?? currentPlan
+        })
+        setOptionsMessage(`Imported ${parsed.length} path${parsed.length === 1 ? '' : 's'} successfully.`)
+      } catch {
+        setOptionsMessage('Import failed. Please choose a valid JSON export from this app.')
+      } finally {
+        event.target.value = ''
+      }
+    }
+
+    reader.readAsText(file)
   }
 
   function parseStreamedLearningPath(raw: string): LearningPathResponse {
@@ -671,7 +738,7 @@ function App() {
           <div className="options-modal" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setIsOptionsModalOpen(false)} aria-label="Close options dialog">×</button>
             <p className="section-marker">PREFERENCES</p>
-            <h3>Learning Medium</h3>
+            <p className="options-subheader">Learning Medium</p>
             <label className="options-select" htmlFor="results-content-preference">
               <select id="results-content-preference" value={contentPreference} onChange={(event) => setContentPreference(event.target.value)}>
                 <option>Videos and readable materials</option>
@@ -679,6 +746,16 @@ function App() {
                 <option>Readable materials (PDF/Webpage) only</option>
               </select>
             </label>
+
+            <div className="options-subsection">
+              <p className="options-subheader">Export / Import</p>
+              <div className="options-actions">
+                <button type="button" className="secondary-button" onClick={exportPlansAsJson}>Export paths (.json)</button>
+                <button type="button" className="secondary-button" onClick={() => importFileInputRef.current?.click()}>Import paths (.json)</button>
+              </div>
+            </div>
+            <input ref={importFileInputRef} type="file" accept=".json,application/json" hidden onChange={importPlansFromJson} />
+            {optionsMessage && <p className="options-message">{optionsMessage}</p>}
           </div>
         </div>
       )}
@@ -708,9 +785,9 @@ function App() {
         </form>
       </section>
       <section className="paths-section">
-        <div className="section-header"><div><div className="section-marker">02 <span>/</span> YOUR PATHS</div><h2>In motion.</h2></div><span className="grid-note">{plans.length} objectives</span></div>
+        <div className="section-header"><div><div className="section-marker">02 <span>/</span> YOUR PATHS</div><h2>In motion.</h2></div><span className="grid-note">{plans.filter((plan) => plan.progress < 100).length} objectives</span></div>
         <div className="plan-grid">
-          {plans.map((plan) => (
+          {plans.filter((plan) => plan.progress < 100).map((plan) => (
             <div className={`plan-card ${plan.color}`} key={plan.id}>
               <div className="card-top">
                 <span className="card-number">0{plan.id}</span>
@@ -726,6 +803,27 @@ function App() {
             </div>
           ))}
           <button className="add-card" onClick={() => document.querySelector('.objective-form')?.scrollIntoView({ behavior: 'smooth' })}><span>+</span><strong>Start a new path</strong><small>Turn the next idea into motion</small></button>
+        </div>
+
+        <div className="section-divider" aria-hidden="true" />
+
+        <div className="section-header completed-header"><div><div className="section-marker">03 <span>/</span> YOUR PATHS</div><h2>Completed.</h2></div><span className="grid-note">{plans.filter((plan) => plan.progress >= 100).length} objectives</span></div>
+        <div className="plan-grid">
+          {plans.filter((plan) => plan.progress >= 100).map((plan) => (
+            <div className={`plan-card ${plan.color}`} key={plan.id}>
+              <div className="card-top">
+                <span className="card-number">0{plan.id}</span>
+                <div className="card-actions">
+                  <button type="button" className="card-arrow" onClick={() => setPlanSelection(plan)}>↗</button>
+                </div>
+              </div>
+              <button type="button" className="card-content-button" onClick={() => setPlanSelection(plan)}>
+                <div className="card-content"><span className="card-label">COMPLETED</span><h3>{plan.objective}</h3><p>Become {plan.outcome}</p></div>
+                <div className="card-footer"><span>{plan.timeframe}</span><span>100% complete</span></div>
+                <div className="progress-bar"><span style={{ width: '100%' }} /></div>
+              </button>
+            </div>
+          ))}
         </div>
       </section>
       <footer><span>LEARNING/PATH © 2026</span><a className="footer-link" href="https://github.com/senthilkumar-chandramohan" target="_blank" rel="noreferrer">MAKE IT COUNT <b>↗</b></a></footer>
