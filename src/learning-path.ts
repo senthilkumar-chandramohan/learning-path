@@ -53,7 +53,8 @@ Critical anti-hallucination instructions:
 - Never use placeholders, sample URLs, made-up domains, test domains, generic template links, or example.com-like values.
 - Every study_materials item must include a descriptive title and a valid https:// URL.
 - Keep the links directly relevant to ${payload.learning_medium} and the chapter topic.
-- Use at least 2-3 valid study materials per chapter when possible; do not include weak or fabricated links to fill the quota.
+- Provide 3 to 10 distinct, valid study materials per chapter. Choose as many as the chapter needs within this range; do not stop at 3 when additional useful resources are available, and never pad the list with weak or fabricated links.
+- The sample below is illustrative; its study_materials counts do not override the requirement to include 3 to 10 materials in every generated chapter.
 - Include only resources that are credible, official, or well-established.
 
 Critical quality rules:
@@ -161,8 +162,8 @@ export function validateLearningPath(response: LearningPathResponse): void {
       throw new Error('Each chapter must include exactly 10 quiz questions.')
     }
 
-    if (!Array.isArray(chapter.study_materials) || chapter.study_materials.length < 2) {
-      throw new Error('Each chapter must include at least 2 study materials.')
+    if (!Array.isArray(chapter.study_materials) || chapter.study_materials.length < 3 || chapter.study_materials.length > 10) {
+      throw new Error('Each chapter must include between 3 and 10 study materials.')
     }
 
     for (const material of chapter.study_materials) {
