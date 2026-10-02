@@ -1,7 +1,8 @@
 import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
-import { streamLearningPathText } from './learning-path.js'
+import { extractJsonResponse, streamLearningPathText, type LearningPathResponse } from './learning-path.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
@@ -24,11 +25,30 @@ app.use(cors({
 }))
 app.use(express.json())
 
+const learningPathRequests = new Map<string, LearningPathResponse | null>()
+const learningPathErrors = new Map<string, string>()
+const learningPathRequestCreatedAt = new Map<string, number>()
+const requestRetentionMs = 30 * 60 * 1000
+
+function removeExpiredRequests() {
+  const expirationTime = Date.now() - requestRetentionMs
+
+  for (const [requestId, createdAt] of learningPathRequestCreatedAt) {
+    if (createdAt < expirationTime) {
+      learningPathRequests.delete(requestId)
+      learningPathErrors.delete(requestId)
+      learningPathRequestCreatedAt.delete(requestId)
+    }
+  }
+}
+
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', service: 'learning-path-api' })
 })
 
 app.post('/api/learning-path', (request, response) => {
+  removeExpiredRequests()
+  const requestId = randomUUID()
   const {
     objective = '',
     outcome = '',
@@ -40,16 +60,13 @@ app.post('/api/learning-path', (request, response) => {
     learning_medium = '',
   } = request.body ?? {}
 
-  response.status(200)
-  response.setHeader('Content-Type', 'application/json; charset=utf-8')
-  response.setHeader('Cache-Control', 'no-cache')
-  response.setHeader('Connection', 'keep-alive')
-  if (typeof response.flushHeaders === 'function') {
-    response.flushHeaders()
-  }
+  learningPathRequests.set(requestId, null)
+  learningPathRequestCreatedAt.set(requestId, Date.now())
+  response.status(200).json({ requestId })
 
   void (async () => {
     try {
+      let rawContent = ''
       for await (const chunk of streamLearningPathText({
         objective: String(objective),
         outcome: String(outcome),
@@ -60,19 +77,44 @@ app.post('/api/learning-path', (request, response) => {
         start_date: String(start_date),
         learning_medium: String(learning_medium),
       })) {
-        response.write(chunk)
+        rawContent += chunk
       }
 
-      response.end()
+      learningPathRequests.set(requestId, extractJsonResponse(rawContent))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to generate the learning path.'
-      if (!response.headersSent) {
-        response.status(500)
-      }
-      response.write(JSON.stringify({ error: message }))
-      response.end()
+      learningPathErrors.set(requestId, message)
     }
   })()
+})
+
+app.get('/api/learning-path/:requestId', (request, response) => {
+  removeExpiredRequests()
+  const { requestId } = request.params
+
+  if (!learningPathRequests.has(requestId)) {
+    response.status(404).json({ status: 'not_found', error: 'Learning path request was not found or has expired.' })
+    return
+  }
+
+  const error = learningPathErrors.get(requestId)
+  if (error) {
+    learningPathRequests.delete(requestId)
+    learningPathErrors.delete(requestId)
+    learningPathRequestCreatedAt.delete(requestId)
+    response.status(500).json({ status: 'error', error })
+    return
+  }
+
+  const result = learningPathRequests.get(requestId)
+  if (result === null) {
+    response.json({ status: 'pending' })
+    return
+  }
+
+  learningPathRequests.delete(requestId)
+  learningPathRequestCreatedAt.delete(requestId)
+  response.json({ status: 'complete', result })
 })
 
 app.listen(port, () => {

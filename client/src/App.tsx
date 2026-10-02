@@ -285,21 +285,6 @@ function App() {
     reader.readAsText(file)
   }
 
-  function parseStreamedLearningPath(raw: string): LearningPathResponse {
-    const candidate = raw.trim()
-    const fencedMatch = candidate.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
-    const sanitized = fencedMatch ? fencedMatch[1].trim() : candidate
-    const startIndex = sanitized.indexOf('{')
-    const endIndex = sanitized.lastIndexOf('}')
-
-    if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
-      throw new Error('Unable to parse the streamed learning path response.')
-    }
-
-    const jsonText = sanitized.slice(startIndex, endIndex + 1)
-    return JSON.parse(jsonText) as LearningPathResponse
-  }
-
   async function createPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsCreatingPlan(true)
@@ -325,22 +310,35 @@ function App() {
       })
 
       if (!response.ok) throw new Error('Unable to chart this path')
+      const { requestId } = await response.json() as { requestId: string }
+      if (!requestId) throw new Error('The server did not return a request ID.')
 
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('Streaming response is not available.')
+      let learningPath: LearningPathResponse | undefined
+      const pollIntervals = [30_000, 30_000, 15_000, 15_000, 10_000, 5_000]
+      let pollIntervalIndex = 0
+      while (!learningPath) {
+        const checkbackResponse = await fetch(`${apiBaseUrl}/api/learning-path/${encodeURIComponent(requestId)}`, {
+          cache: 'no-store',
+        })
 
-      const decoder = new TextDecoder()
-      let streamedText = ''
+        if (!checkbackResponse.ok) {
+          const checkbackError = await checkbackResponse.json().catch(() => null)
+          throw new Error(checkbackError?.error ?? 'Unable to retrieve the generated learning path.')
+        }
 
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        streamedText += decoder.decode(value, { stream: true })
+        const checkback = await checkbackResponse.json() as {
+          status: 'pending' | 'complete'
+          result?: LearningPathResponse
+        }
+        if (checkback.status === 'complete' && checkback.result) {
+          learningPath = checkback.result
+        } else {
+          const interval = pollIntervals[Math.min(pollIntervalIndex, pollIntervals.length - 1)]
+          await new Promise((resolve) => window.setTimeout(resolve, interval))
+          pollIntervalIndex += 1
+        }
       }
 
-      streamedText += decoder.decode()
-
-      const learningPath = parseStreamedLearningPath(streamedText)
       const nextId = Number(String(Date.now()).slice(-6))
       const tileColors = ['coral', 'lime', 'blue', 'violet']
       const chapters = learningPath.chapters.map((chapter, chapterIndex) => ({
@@ -759,7 +757,14 @@ function App() {
           </div>
         </div>
       )}
-      <section className="builder-section">
+      <section className="builder-section" aria-busy={isCreatingPlan}>
+        {isCreatingPlan && (
+          <div className="generation-overlay" role="status" aria-live="polite">
+            <span className="generation-spinner" aria-hidden="true" />
+            <strong>Charting your path</strong>
+            <span>This can take a few minutes.</span>
+          </div>
+        )}
         <div className="section-marker">01 <span>/</span> SET YOUR DIRECTION</div>
         <h1>What are you <em>chasing?</em></h1>
         <p className="section-intro">Tell me your goal, I’ll provide a route you can actually follow.</p>

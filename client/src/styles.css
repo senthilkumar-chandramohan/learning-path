@@ -78,7 +78,31 @@ button { cursor: pointer; }
   line-height: 1.5;
 }
 .modal-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(18, 19, 16, 0.65); z-index: 10; }
-.builder-section { padding: 72px 42px 90px; border-bottom: 1px solid var(--line); }
+.builder-section { position: relative; padding: 72px 42px 90px; border-bottom: 1px solid var(--line); }
+.generation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  color: var(--ink);
+  text-align: center;
+}
+.generation-overlay strong { font-size: 1.2rem; font-weight: 600; }
+.generation-overlay > span:last-child { color: var(--muted); font-size: .9rem; }
+.generation-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--line);
+  border-top-color: var(--coral);
+  border-radius: 50%;
+  animation: generation-spin .8s linear infinite;
+}
+@keyframes generation-spin { to { transform: rotate(360deg); } }
 .section-marker, .overline, .card-label, .map-label, .stat-block span { color: var(--muted); font-family: 'DM Mono', monospace; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
 .section-marker { margin-bottom: 30px; }
 .builder-section h1, .detail-heading h1, h2 { margin: 0; font-size: clamp(3.5rem, 8vw, 7.8rem); font-weight: 500; letter-spacing: -.08em; line-height: .9; }
