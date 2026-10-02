@@ -50,6 +50,7 @@ app.post('/api/learning-path', (request, response) => {
   removeExpiredRequests()
   const requestId = randomUUID()
   const {
+    current_competence = 'enthusiast',
     objective = '',
     outcome = '',
     timeframe = 0,
@@ -68,6 +69,7 @@ app.post('/api/learning-path', (request, response) => {
     try {
       let rawContent = ''
       for await (const chunk of streamLearningPathText({
+        current_competence: String(current_competence),
         objective: String(objective),
         outcome: String(outcome),
         timeframe: Number(timeframe),

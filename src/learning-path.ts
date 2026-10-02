@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai'
 
 export type LearningPathRequest = {
+  current_competence: string
   objective: string
   outcome: string
   timeframe: number
@@ -43,7 +44,7 @@ export type LearningPathResponse = {
 }
 
 export function buildLearningPathPrompt(payload: LearningPathRequest): string {
-  return `I want to learn ${payload.objective} to become ${payload.outcome}. Put together a ${payload.timeframe} ${payload.timeframe_unit}, ${payload.hours_per_day} hours a day, ${payload.frequency} learning plan starting ${payload.start_date}. Divide learning into logical chapters and include multiple study links of ${payload.learning_medium} that can help learn each chapter. Also include a quiz for each chapter. The quiz should be objective with only one correct answer, with a mix of multiple-choice and true/false questions (80% multiple-choice, 20% true/false). True/false questions must include the exact prefix "True or False: " at the beginning of the question text. Include exactly 10 quiz questions per chapter.
+  return `The learner describes their current competence as "${payload.current_competence}". Use this to calibrate prerequisites, explanations, and the plan's starting depth; do not assume knowledge beyond this level. I want to learn ${payload.objective} to become ${payload.outcome}. Put together a ${payload.timeframe} ${payload.timeframe_unit}, ${payload.hours_per_day} hours a day, ${payload.frequency} learning plan starting ${payload.start_date}. Divide learning into logical chapters and include multiple study links of ${payload.learning_medium} that can help learn each chapter. Also include a quiz for each chapter. The quiz should be objective with only one correct answer, with a mix of multiple-choice and true/false questions (80% multiple-choice, 20% true/false). True/false questions must include the exact prefix "True or False: " at the beginning of the question text. Include exactly 10 quiz questions per chapter.
 
 Critical anti-hallucination instructions:
 - Never invent, guess, or fabricate study links, titles, webpages, or domains.

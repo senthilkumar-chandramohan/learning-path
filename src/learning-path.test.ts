@@ -32,6 +32,7 @@ function createLearningPath(materialCount: number): LearningPathResponse {
 
 test('buildLearningPathPrompt fills the template values', () => {
   const prompt = buildLearningPathPrompt({
+    current_competence: 'enthusiast',
     objective: 'Blockchain',
     outcome: 'a Blockchain Architect',
     timeframe: 6,
@@ -43,6 +44,7 @@ test('buildLearningPathPrompt fills the template values', () => {
   })
 
   assert.match(prompt, /Blockchain/) 
+  assert.match(prompt, /current competence as "enthusiast"/)
   assert.match(prompt, /a Blockchain Architect/) 
   assert.match(prompt, /6 months/) 
   assert.match(prompt, /2 hours a day/) 

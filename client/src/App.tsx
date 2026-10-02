@@ -169,6 +169,7 @@ function App() {
   const [plans, setPlans] = useState<Plan[]>(() => getStoredPlans())
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [darkMode, setDarkMode] = useState(true)
+  const [currentCompetence, setCurrentCompetence] = useState('enthusiast')
   const [objective, setObjective] = useState('Guitar')
   const [outcome, setOutcome] = useState('a Musician')
   const [timeframe, setTimeframe] = useState('6')
@@ -298,6 +299,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          current_competence: currentCompetence,
           objective,
           outcome,
           timeframe: Number(timeframe),
@@ -770,7 +772,9 @@ function App() {
         <p className="section-intro">Tell me your goal, I’ll provide a route you can actually follow.</p>
         <form className="objective-form" onSubmit={createPlan}>
           <div className="sentence">
-            <span>I want to learn</span>
+            <span>I'm a</span>
+            <label className="inline-field wide"><input value={currentCompetence} onChange={(event) => setCurrentCompetence(event.target.value)} aria-label="Current competence" /></label>
+            <span>, I want to learn</span>
             <label className="inline-field wide"><input value={objective} onChange={(event) => setObjective(event.target.value)} aria-label="Learning objective" /></label>
             <span>to become</span>
             <label className="inline-field wider"><input value={outcome} onChange={(event) => setOutcome(event.target.value)} aria-label="Desired outcome" /></label>
