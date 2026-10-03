@@ -65,6 +65,21 @@ type LearningPathResponse = {
   chapters: Chapter[]
 }
 
+type PromptExample = {
+  competence: string
+  objective: string
+  outcome: string
+}
+
+const PROMPT_EXAMPLES: PromptExample[] = [
+  { competence: 'a beginner writer', objective: 'Creative Writing', outcome: 'an Author' },
+  { competence: 'an amateur illustrator', objective: 'Digital Painting', outcome: 'a Concept Artist' },
+  { competence: 'a novice videographer', objective: 'Video Editing', outcome: 'a Filmmaker' },
+  { competence: 'a self-taught hobbyist', objective: 'Python', outcome: 'a Software Developer' },
+  { competence: 'a home cook', objective: 'Pastry Techniques', outcome: 'a Baker' },
+  { competence: 'a beginner sewist', objective: 'Pattern Making', outcome: 'a Fashion Designer' },
+]
+
 const STORAGE_KEY = 'learning-paths-v1'
 const QUIZ_STORAGE_KEY = 'learning-path-quiz-state-v1'
 
@@ -169,9 +184,12 @@ function App() {
   const [plans, setPlans] = useState<Plan[]>(() => getStoredPlans())
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [darkMode, setDarkMode] = useState(true)
-  const [currentCompetence, setCurrentCompetence] = useState('an enthusiast')
-  const [objective, setObjective] = useState('Guitar')
-  const [outcome, setOutcome] = useState('a Musician')
+  const [promptExampleIndex, setPromptExampleIndex] = useState(0)
+  const [isPromptEditing, setIsPromptEditing] = useState(false)
+  const activePromptExample = PROMPT_EXAMPLES[promptExampleIndex]
+  const [currentCompetence, setCurrentCompetence] = useState(PROMPT_EXAMPLES[0].competence)
+  const [objective, setObjective] = useState(PROMPT_EXAMPLES[0].objective)
+  const [outcome, setOutcome] = useState(PROMPT_EXAMPLES[0].outcome)
   const [timeframe, setTimeframe] = useState('6')
   const [unit, setUnit] = useState('months')
   const [hours, setHours] = useState('2')
@@ -189,6 +207,25 @@ function App() {
   const [optionsMessage, setOptionsMessage] = useState('')
   const dateInputRef = useRef<HTMLInputElement>(null)
   const importFileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isPromptEditing) return
+
+    const intervalId = window.setInterval(() => {
+      setPromptExampleIndex((currentIndex) => (currentIndex + 1) % PROMPT_EXAMPLES.length)
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [isPromptEditing])
+
+  useEffect(() => {
+    if (isPromptEditing) return
+
+    const example = PROMPT_EXAMPLES[promptExampleIndex]
+    setCurrentCompetence(example.competence)
+    setObjective(example.objective)
+    setOutcome(example.outcome)
+  }, [promptExampleIndex, isPromptEditing])
 
   useEffect(() => {
     const savedPreference = window.localStorage.getItem('learning-path-content-preference')
@@ -219,6 +256,10 @@ function App() {
     if (!input) return
 
     input.showPicker()
+  }
+
+  function stopPromptExamples() {
+    setIsPromptEditing(true)
   }
 
   function exportPlansAsJson() {
@@ -773,11 +814,11 @@ function App() {
         <form className="objective-form" onSubmit={createPlan}>
           <div className="sentence">
             <span>I'm</span>
-            <label className="inline-field wide"><input value={currentCompetence} onChange={(event) => setCurrentCompetence(event.target.value)} aria-label="Current competence" /></label>
+            <label className="inline-field wide competence-field"><input value={currentCompetence} onFocus={stopPromptExamples} onChange={(event) => setCurrentCompetence(event.target.value)} aria-label="Current competence" /></label>
             <span>, I want to learn</span>
-            <label className="inline-field wide"><input value={objective} onChange={(event) => setObjective(event.target.value)} aria-label="Learning objective" /></label>
+            <label className="inline-field wide"><input value={objective} onFocus={stopPromptExamples} onChange={(event) => setObjective(event.target.value)} aria-label="Learning objective" /></label>
             <span>to become</span>
-            <label className="inline-field wider"><input value={outcome} onChange={(event) => setOutcome(event.target.value)} aria-label="Desired outcome" /></label>
+            <label className="inline-field wider"><input value={outcome} onFocus={stopPromptExamples} onChange={(event) => setOutcome(event.target.value)} aria-label="Desired outcome" /></label>
             <span>in</span>
             <label className="select-field"><select value={timeframe} onChange={(event) => setTimeframe(event.target.value)} aria-label="Timeframe"><option>3</option><option>6</option><option>9</option><option>12</option></select></label>
             <label className="select-field"><select value={unit} onChange={(event) => setUnit(event.target.value)} aria-label="Time unit"><option>months</option><option>weeks</option></select></label>,
