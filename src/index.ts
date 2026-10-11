@@ -2,7 +2,7 @@ import 'dotenv/config'
 import { randomUUID } from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
-import { extractJsonResponse, streamLearningPathText, type LearningPathResponse } from './learning-path.js'
+import { extractJsonResponse, streamLearningPathText, validateLearningPathRequest, type LearningPathResponse, type LearningPathRequest } from './learning-path.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
@@ -23,7 +23,7 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json())
+app.use(express.json({ limit: '32kb' }))
 
 const learningPathRequests = new Map<string, LearningPathResponse | null>()
 const learningPathErrors = new Map<string, string>()
@@ -48,8 +48,8 @@ app.get('/api/health', (_request, response) => {
 
 app.post('/api/learning-path', (request, response) => {
   removeExpiredRequests()
-  const requestId = randomUUID()
   const {
+    mode = 'goals',
     current_competence = 'enthusiast',
     objective = '',
     outcome = '',
@@ -59,8 +59,35 @@ app.post('/api/learning-path', (request, response) => {
     frequency = '',
     start_date = '',
     learning_medium = '',
+    interview_company = '',
+    job_description = '',
+    job_posting_url = '',
   } = request.body ?? {}
 
+  const payload: LearningPathRequest = {
+    mode,
+    current_competence: String(current_competence),
+    objective: String(objective),
+    outcome: String(outcome),
+    timeframe: Number(timeframe),
+    timeframe_unit: String(timeframe_unit),
+    hours_per_day: Number(hours_per_day),
+    frequency: String(frequency),
+    start_date: String(start_date),
+    learning_medium: String(learning_medium),
+    interview_company: String(interview_company),
+    job_description: String(job_description),
+    job_posting_url: String(job_posting_url),
+  }
+
+  try {
+    validateLearningPathRequest(payload)
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid learning path request.' })
+    return
+  }
+
+  const requestId = randomUUID()
   learningPathRequests.set(requestId, null)
   learningPathRequestCreatedAt.set(requestId, Date.now())
   response.status(200).json({ requestId })
@@ -68,17 +95,7 @@ app.post('/api/learning-path', (request, response) => {
   void (async () => {
     try {
       let rawContent = ''
-      for await (const chunk of streamLearningPathText({
-        current_competence: String(current_competence),
-        objective: String(objective),
-        outcome: String(outcome),
-        timeframe: Number(timeframe),
-        timeframe_unit: String(timeframe_unit),
-        hours_per_day: Number(hours_per_day),
-        frequency: String(frequency),
-        start_date: String(start_date),
-        learning_medium: String(learning_medium),
-      })) {
+      for await (const chunk of streamLearningPathText(payload)) {
         rawContent += chunk
       }
 

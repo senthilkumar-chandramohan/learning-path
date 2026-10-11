@@ -10,6 +10,8 @@ type TopicProgress = {
 
 type Plan = {
   id: number
+  kind: 'goals' | 'interview'
+  jobPostingUrl?: string
   objective: string
   outcome: string
   timeframe: string
@@ -79,6 +81,7 @@ const PROMPT_EXAMPLES: PromptExample[] = [
   { competence: 'a home cook', objective: 'Pastry Techniques', outcome: 'a Baker' },
   { competence: 'a beginner sewist', objective: 'Pattern Making', outcome: 'a Fashion Designer' },
 ]
+const INTERVIEW_COMPANIES = ['Google', 'Walmart', 'Amazon', 'HSBC', 'Citi']
 
 const STORAGE_KEY = 'learning-paths-v1'
 const QUIZ_STORAGE_KEY = 'learning-path-quiz-state-v1'
@@ -126,6 +129,7 @@ function getStoredPlans(): Plan[] {
 
     return parsedPlans.map((plan) => ({
       ...plan,
+      kind: plan.kind === 'interview' ? 'interview' : 'goals',
       chapters: Array.isArray(plan.chapters)
         ? plan.chapters.map((chapter: ChapterProgress, chapterIndex: number) => ({
             ...chapter,
@@ -183,9 +187,12 @@ function buildPlanTopics(chapter: Chapter, planId: number, chapterIndex: number)
 function App() {
   const [plans, setPlans] = useState<Plan[]>(() => getStoredPlans())
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'goals' | 'interview'>('goals')
   const [darkMode, setDarkMode] = useState(true)
   const [promptExampleIndex, setPromptExampleIndex] = useState(0)
   const [isPromptEditing, setIsPromptEditing] = useState(false)
+  const [interviewCompanyIndex, setInterviewCompanyIndex] = useState(0)
+  const [isInterviewCompanyEditing, setIsInterviewCompanyEditing] = useState(false)
   const activePromptExample = PROMPT_EXAMPLES[promptExampleIndex]
   const [currentCompetence, setCurrentCompetence] = useState(PROMPT_EXAMPLES[0].competence)
   const [objective, setObjective] = useState(PROMPT_EXAMPLES[0].objective)
@@ -194,6 +201,10 @@ function App() {
   const [unit, setUnit] = useState('months')
   const [hours, setHours] = useState('2')
   const [cadence, setCadence] = useState('every day')
+  const [interviewCompany, setInterviewCompany] = useState('Google')
+  const [interviewDays, setInterviewDays] = useState('15')
+  const [jobDescription, setJobDescription] = useState('')
+  const [jobPostingUrl, setJobPostingUrl] = useState('')
   const [startDate, setStartDate] = useState('')
   const [expandedChapter, setExpandedChapter] = useState(0)
   const [isCreatingPlan, setIsCreatingPlan] = useState(false)
@@ -226,6 +237,22 @@ function App() {
     setObjective(example.objective)
     setOutcome(example.outcome)
   }, [promptExampleIndex, isPromptEditing])
+
+  useEffect(() => {
+    if (activeBuilderTab !== 'interview' || isInterviewCompanyEditing) return
+
+    const intervalId = window.setInterval(() => {
+      setInterviewCompanyIndex((currentIndex) => (currentIndex + 1) % INTERVIEW_COMPANIES.length)
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [activeBuilderTab, isInterviewCompanyEditing])
+
+  useEffect(() => {
+    if (!isInterviewCompanyEditing) {
+      setInterviewCompany(INTERVIEW_COMPANIES[interviewCompanyIndex])
+    }
+  }, [interviewCompanyIndex, isInterviewCompanyEditing])
 
   useEffect(() => {
     const savedPreference = window.localStorage.getItem('learning-path-content-preference')
@@ -340,19 +367,26 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          current_competence: currentCompetence,
-          objective,
-          outcome,
-          timeframe: Number(timeframe),
-          timeframe_unit: unit,
+          mode: activeBuilderTab,
+          current_competence: activeBuilderTab === 'goals' ? currentCompetence : 'interview candidate',
+          objective: activeBuilderTab === 'goals' ? objective : `Interview preparation for ${interviewCompany}`,
+          outcome: activeBuilderTab === 'goals' ? outcome : `a prepared ${interviewCompany} interview candidate`,
+          timeframe: Number(activeBuilderTab === 'goals' ? timeframe : interviewDays),
+          timeframe_unit: activeBuilderTab === 'goals' ? unit : 'days',
           hours_per_day: Number(hours),
-          frequency: cadence,
+          frequency: activeBuilderTab === 'goals' ? cadence : 'every day',
           start_date: startDate || new Date().toISOString().slice(0, 10),
           learning_medium: contentPreference,
+          interview_company: activeBuilderTab === 'interview' ? interviewCompany : undefined,
+          job_description: activeBuilderTab === 'interview' ? jobDescription : undefined,
+          job_posting_url: activeBuilderTab === 'interview' ? jobPostingUrl : undefined,
         }),
       })
 
-      if (!response.ok) throw new Error('Unable to chart this path')
+      if (!response.ok) {
+        const error = await response.json().catch(() => null)
+        throw new Error(error?.error ?? 'Unable to chart this path')
+      }
       const { requestId } = await response.json() as { requestId: string }
       if (!requestId) throw new Error('The server did not return a request ID.')
 
@@ -392,11 +426,13 @@ function App() {
       }))
       const newPlan: Plan = {
         id: nextId,
-        objective: objective || 'New objective',
-        outcome: outcome || 'a new skill',
-        timeframe: `${timeframe} ${unit}`,
+        kind: activeBuilderTab,
+        jobPostingUrl: activeBuilderTab === 'interview' ? jobPostingUrl.trim() || undefined : undefined,
+        objective: activeBuilderTab === 'goals' ? objective || 'New objective' : `Interview at ${interviewCompany}`,
+        outcome: activeBuilderTab === 'goals' ? outcome || 'a new skill' : `a prepared ${interviewCompany} candidate`,
+        timeframe: activeBuilderTab === 'goals' ? `${timeframe} ${unit}` : `${interviewDays} days`,
         hours: `${hours} hrs / day`,
-        cadence: cadence.replace(/^./, (letter) => letter.toUpperCase()),
+        cadence: (activeBuilderTab === 'goals' ? cadence : 'every day').replace(/^./, (letter) => letter.toUpperCase()),
         startDate: startDate || 'Today',
         progress: 0,
         color: tileColors[plans.length % tileColors.length],
@@ -406,8 +442,8 @@ function App() {
       setPlans((currentPlans) => [newPlan, ...currentPlans])
       setExpandedChapter(0)
       setPlanSelection(newPlan)
-    } catch {
-      setApiError('We could not chart that path. Check that the API is running and try again.')
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'We could not chart that path. Check that the API is running and try again.')
     } finally {
       setIsCreatingPlan(false)
     }
@@ -430,14 +466,19 @@ function App() {
 
   function getEstimatedEndDate(plan: Plan) {
     const timeframeMatch = plan.timeframe.match(/(\d+)/)
-    const monthCount = timeframeMatch ? Number(timeframeMatch[1]) : 0
+    const timeframeCount = timeframeMatch ? Number(timeframeMatch[1]) : 0
     const startValue = plan.startDate === 'Today' ? new Date() : new Date(plan.startDate)
 
-    if (!Number.isFinite(monthCount) || Number.isNaN(startValue.getTime())) {
+    if (!Number.isFinite(timeframeCount) || Number.isNaN(startValue.getTime())) {
       return '—'
     }
 
-    return formatDateLabel(addMonthsToDate(startValue, monthCount))
+    if (plan.timeframe.includes('days')) {
+      startValue.setDate(startValue.getDate() + timeframeCount)
+      return formatDateLabel(startValue)
+    }
+
+    return formatDateLabel(addMonthsToDate(startValue, timeframeCount))
   }
 
   function setPlanSelection(plan: Plan | null) {
@@ -697,8 +738,8 @@ function App() {
           </div>
           <div className="detail-heading">
             <div>
-              <h1>Become <em>{selectedPlan.outcome.replace(/^a /, '')}</em>.</h1>
-              <p className="detail-subtitle">Your {selectedPlan.timeframe} route to learning {selectedPlan.objective}.</p>
+              {selectedPlan.kind === 'interview' ? <h1>Prepare for <em>{selectedPlan.objective.replace(/^Interview at\s+/i, '') || selectedPlan.outcome.replace(/^a prepared\s+/i, '').replace(/\s+candidate$/i, '')}</em> interview.</h1> : <h1>Become <em>{selectedPlan.outcome.replace(/^a /, '')}</em>.</h1>}
+              <p className="detail-subtitle">{selectedPlan.kind === 'interview' ? `Your ${selectedPlan.timeframe} preparation plan.` : `Your ${selectedPlan.timeframe} route to learning ${selectedPlan.objective}.`}</p>
             </div>
             <div className="detail-summary">
               <div className={`progress-ring ${selectedPlan.color}`} style={{ '--progress': `${progress * 3.6}deg` } as CSSProperties}>
@@ -719,6 +760,10 @@ function App() {
             </div>
           </div>
           <div className="detail-grid">
+            {selectedPlan.kind === 'interview' && selectedPlan.jobPostingUrl && <div className="job-posting-detail">
+              <span className="map-label">JOB POSTING</span>
+              <a href={selectedPlan.jobPostingUrl} target="_blank" rel="noreferrer">{selectedPlan.jobPostingUrl}<span aria-hidden="true"> ↗</span></a>
+            </div>}
             <div className="path-map">
               <div className="map-label">THE ROUTE</div>
               <div className="route-line" />
@@ -762,6 +807,31 @@ function App() {
         </section>
       </main>
     )
+  }
+
+  const activeGoalPlans = plans.filter((plan) => plan.kind !== 'interview' && plan.progress < 100)
+  const completedGoalPlans = plans.filter((plan) => plan.kind !== 'interview' && plan.progress >= 100)
+  const activeInterviewPlans = plans.filter((plan) => plan.kind === 'interview' && plan.progress < 100)
+  const completedInterviewPlans = plans.filter((plan) => plan.kind === 'interview' && plan.progress >= 100)
+  const visibleActivePlans = activeBuilderTab === 'goals' ? activeGoalPlans : activeInterviewPlans
+  const visibleCompletedPlans = activeBuilderTab === 'goals' ? completedGoalPlans : completedInterviewPlans
+
+  function renderPlanCards(paths: Plan[], completed = false) {
+    return paths.map((plan) => (
+      <div className={`plan-card ${plan.color}`} key={plan.id}>
+        <div className="card-top">
+          <span className="card-number">0{plan.id}</span>
+          <div className="card-actions">
+            <button type="button" className="card-arrow" onClick={() => setPlanSelection(plan)}>↗</button>
+          </div>
+        </div>
+        <button type="button" className="card-content-button" onClick={() => setPlanSelection(plan)}>
+          <div className="card-content"><span className="card-label">{completed ? 'COMPLETED' : plan.progress > 0 ? 'LEARNING IN PROGRESS' : 'READY TO START'}</span><h3>{plan.objective}</h3><p>Become {plan.outcome}</p></div>
+          <div className="card-footer"><span>{plan.timeframe}</span><span>{completed ? '100% complete' : `${plan.progress}% complete`}</span></div>
+          <div className="progress-bar"><span style={{ width: `${completed ? 100 : plan.progress}%` }} /></div>
+        </button>
+      </div>
+    ))
   }
 
   return (
@@ -808,17 +878,21 @@ function App() {
             <span>This can take a few minutes.</span>
           </div>
         )}
-        <div className="section-marker">01 <span>/</span> SET YOUR DIRECTION</div>
-        <h1>What are you <em>chasing?</em></h1>
-        <p className="section-intro">Tell me your goal, I’ll provide a route you can actually follow.</p>
-        <form className="objective-form" onSubmit={createPlan}>
-          <div className="sentence">
+        <div className="builder-tabs" role="tablist" aria-label="Choose a learning path type">
+          <button type="button" role="tab" id="builder-tab-goals" aria-controls="builder-panel" aria-selected={activeBuilderTab === 'goals'} className={`builder-tab ${activeBuilderTab === 'goals' ? 'is-active' : ''}`} onClick={() => { setActiveBuilderTab('goals'); setApiError('') }}>Career/Life Goals</button>
+          <button type="button" role="tab" id="builder-tab-interview" aria-controls="builder-panel" aria-selected={activeBuilderTab === 'interview'} className={`builder-tab ${activeBuilderTab === 'interview' ? 'is-active' : ''}`} onClick={() => { setActiveBuilderTab('interview'); setApiError('') }}>Interviews</button>
+        </div>
+        <div className="section-marker">01 <span>/</span> {activeBuilderTab === 'goals' ? 'SET YOUR DIRECTION' : 'PREPARE FOR THE ROOM'}</div>
+        <h1>{activeBuilderTab === 'goals' ? <>What are you <em>chasing?</em></> : <>Make your next interview <em>count.</em></>}</h1>
+        <p className="section-intro">{activeBuilderTab === 'goals' ? 'Tell me your goal, I’ll provide a route you can actually follow.' : 'Share the role and its job description for a focused, day-by-day prep path.'}</p>
+        <form className="objective-form" onSubmit={createPlan} role="tabpanel" id="builder-panel" aria-labelledby={`builder-tab-${activeBuilderTab}`}>
+          {activeBuilderTab === 'goals' ? <div className="sentence">
             <span>I'm</span>
-            <label className="inline-field wide competence-field"><input value={currentCompetence} onFocus={stopPromptExamples} onChange={(event) => setCurrentCompetence(event.target.value)} aria-label="Current competence" /></label>
+            <label className="inline-field wide competence-field"><input value={currentCompetence} onFocus={stopPromptExamples} onChange={(event) => setCurrentCompetence(event.target.value)} aria-label="Current competence" minLength={2} maxLength={300} required /></label>
             <span>, I want to learn</span>
-            <label className="inline-field wide"><input value={objective} onFocus={stopPromptExamples} onChange={(event) => setObjective(event.target.value)} aria-label="Learning objective" /></label>
+            <label className="inline-field wide"><input value={objective} onFocus={stopPromptExamples} onChange={(event) => setObjective(event.target.value)} aria-label="Learning objective" minLength={2} maxLength={300} required /></label>
             <span>to become</span>
-            <label className="inline-field wider"><input value={outcome} onFocus={stopPromptExamples} onChange={(event) => setOutcome(event.target.value)} aria-label="Desired outcome" /></label>
+            <label className="inline-field wider"><input value={outcome} onFocus={stopPromptExamples} onChange={(event) => setOutcome(event.target.value)} aria-label="Desired outcome" minLength={2} maxLength={300} required /></label>
             <span>in</span>
             <label className="select-field"><select value={timeframe} onChange={(event) => setTimeframe(event.target.value)} aria-label="Timeframe"><option>3</option><option>6</option><option>9</option><option>12</option></select></label>
             <label className="select-field"><select value={unit} onChange={(event) => setUnit(event.target.value)} aria-label="Time unit"><option>months</option><option>weeks</option></select></label>,
@@ -829,52 +903,37 @@ function App() {
             <span>starting</span>
             <label className="date-field" onClick={(event) => { event.preventDefault(); openDatePicker() }}><input ref={dateInputRef} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label="Start date" /><span>{startDate ? startDate : 'today'}</span></label>
             <span>.</span>
-          </div>
+          </div> : <div className="interview-fields">
+            <div className="sentence interview-sentence">
+              <span>Provide me a learning path for an interview with</span>
+              <label className="inline-field company-field"><input value={interviewCompany} onFocus={() => setIsInterviewCompanyEditing(true)} onChange={(event) => setInterviewCompany(event.target.value)} aria-label="Interview company" minLength={2} maxLength={120} required /></label>
+              <span>in</span>
+              <label className="inline-field days-field"><input type="number" min="1" max="180" value={interviewDays} onChange={(event) => setInterviewDays(event.target.value)} aria-label="Days until interview" required /></label>
+              <span>days. I can study</span>
+              <label className="select-field"><select value={hours} onChange={(event) => setHours(event.target.value)} aria-label="Hours per day"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option></select></label>
+              <span>hours a day.</span>
+            </div>
+            <label className="job-description-label" htmlFor="job-posting-url">JOB POSTING LINK</label>
+            <input id="job-posting-url" className="job-posting-input" type="url" value={jobPostingUrl} onChange={(event) => setJobPostingUrl(event.target.value)} placeholder="https://company.com/careers/role" maxLength={2048} />
+            <label className="job-description-label" htmlFor="job-description">JOB DESCRIPTION</label>
+            <textarea id="job-description" className="job-description" value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} placeholder="Paste the job title, responsibilities, qualifications, and skills..." minLength={30} maxLength={20000} required />
+            <div className="description-meta"><span>Keep it focused on the role and its requirements.</span><span>{jobDescription.length.toLocaleString()} / 20,000</span></div>
+          </div>}
           <button className="primary-button create-button" type="submit" disabled={isCreatingPlan}>{isCreatingPlan ? 'Charting path...' : 'Chart my path'} <span>↗</span></button>
           {apiError && <p className="api-error" role="alert">{apiError}</p>}
         </form>
       </section>
       <section className="paths-section">
-        <div className="section-header"><div><div className="section-marker">02 <span>/</span> YOUR PATHS</div><h2>In motion.</h2></div><span className="grid-note">{plans.filter((plan) => plan.progress < 100).length} objectives</span></div>
+        <div className="section-header"><div><div className="section-marker">02 <span>/</span> YOUR PATHS</div><h2>In motion.</h2></div><span className="grid-note">{visibleActivePlans.length} {activeBuilderTab === 'goals' ? 'objectives' : 'interviews'}</span></div>
         <div className="plan-grid">
-          {plans.filter((plan) => plan.progress < 100).map((plan) => (
-            <div className={`plan-card ${plan.color}`} key={plan.id}>
-              <div className="card-top">
-                <span className="card-number">0{plan.id}</span>
-                <div className="card-actions">
-                  <button type="button" className="card-arrow" onClick={() => setPlanSelection(plan)}>↗</button>
-                </div>
-              </div>
-              <button type="button" className="card-content-button" onClick={() => setPlanSelection(plan)}>
-                <div className="card-content"><span className="card-label">LEARNING {plan.progress > 0 ? 'IN PROGRESS' : 'READY TO START'}</span><h3>{plan.objective}</h3><p>Become {plan.outcome}</p></div>
-                <div className="card-footer"><span>{plan.timeframe}</span><span>{plan.progress}% complete</span></div>
-                <div className="progress-bar"><span style={{ width: `${plan.progress}%` }} /></div>
-              </button>
-            </div>
-          ))}
-          <button className="add-card" onClick={() => document.querySelector('.objective-form')?.scrollIntoView({ behavior: 'smooth' })}><span>+</span><strong>Start a new path</strong><small>Turn the next idea into motion</small></button>
+          {renderPlanCards(visibleActivePlans)}
+          <button className="add-card" onClick={() => document.querySelector('.objective-form')?.scrollIntoView({ behavior: 'smooth' })}><span>+</span><strong>{activeBuilderTab === 'goals' ? 'Start a new path' : 'Start interview prep'}</strong><small>{activeBuilderTab === 'goals' ? 'Turn the next idea into motion' : 'Prepare for what is next'}</small></button>
         </div>
 
         <div className="section-divider" aria-hidden="true" />
 
-        <div className="section-header completed-header"><div><div className="section-marker">03 <span>/</span> YOUR PATHS</div><h2>Completed.</h2></div><span className="grid-note">{plans.filter((plan) => plan.progress >= 100).length} objectives</span></div>
-        <div className="plan-grid">
-          {plans.filter((plan) => plan.progress >= 100).map((plan) => (
-            <div className={`plan-card ${plan.color}`} key={plan.id}>
-              <div className="card-top">
-                <span className="card-number">0{plan.id}</span>
-                <div className="card-actions">
-                  <button type="button" className="card-arrow" onClick={() => setPlanSelection(plan)}>↗</button>
-                </div>
-              </div>
-              <button type="button" className="card-content-button" onClick={() => setPlanSelection(plan)}>
-                <div className="card-content"><span className="card-label">COMPLETED</span><h3>{plan.objective}</h3><p>Become {plan.outcome}</p></div>
-                <div className="card-footer"><span>{plan.timeframe}</span><span>100% complete</span></div>
-                <div className="progress-bar"><span style={{ width: '100%' }} /></div>
-              </button>
-            </div>
-          ))}
-        </div>
+        <div className="section-header completed-header"><div><div className="section-marker">03 <span>/</span> YOUR PATHS</div><h2>Completed.</h2></div><span className="grid-note">{visibleCompletedPlans.length} {activeBuilderTab === 'goals' ? 'objectives' : 'interviews'}</span></div>
+        <div className="plan-grid">{renderPlanCards(visibleCompletedPlans, true)}</div>
       </section>
       <footer><span>LEARNING/PATH © 2026</span><a className="footer-link" href="https://github.com/senthilkumar-chandramohan" target="_blank" rel="noreferrer">MAKE IT COUNT <b>↗</b></a></footer>
     </main>
