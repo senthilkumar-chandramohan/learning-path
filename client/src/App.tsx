@@ -84,7 +84,16 @@ const PROMPT_EXAMPLES: PromptExample[] = [
 const INTERVIEW_COMPANIES = ['Google', 'Walmart', 'Amazon', 'HSBC', 'Citi']
 
 const STORAGE_KEY = 'learning-paths-v1'
+const BUILDER_TAB_STORAGE_KEY = 'learning-path-builder-tab-v1'
 const QUIZ_STORAGE_KEY = 'learning-path-quiz-state-v1'
+
+function getStoredBuilderTab(): 'goals' | 'interview' {
+  if (typeof window === 'undefined') {
+    return 'goals'
+  }
+
+  return window.localStorage.getItem(BUILDER_TAB_STORAGE_KEY) === 'interview' ? 'interview' : 'goals'
+}
 
 function formatRouteIndex(index: number) {
   return index < 9 ? `0${index + 1}` : `${index + 1}`
@@ -187,7 +196,7 @@ function buildPlanTopics(chapter: Chapter, planId: number, chapterIndex: number)
 function App() {
   const [plans, setPlans] = useState<Plan[]>(() => getStoredPlans())
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
-  const [activeBuilderTab, setActiveBuilderTab] = useState<'goals' | 'interview'>('goals')
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'goals' | 'interview'>(() => getStoredBuilderTab())
   const [darkMode, setDarkMode] = useState(true)
   const [promptExampleIndex, setPromptExampleIndex] = useState(0)
   const [isPromptEditing, setIsPromptEditing] = useState(false)
@@ -260,6 +269,10 @@ function App() {
       setContentPreference(savedPreference)
     }
   }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(BUILDER_TAB_STORAGE_KEY, activeBuilderTab)
+  }, [activeBuilderTab])
 
   useEffect(() => {
     window.localStorage.setItem('learning-path-content-preference', contentPreference)
