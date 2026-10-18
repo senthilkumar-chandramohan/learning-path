@@ -6,6 +6,7 @@ type TopicProgress = {
   link: string
   type: string
   completed: boolean
+  estimated_learning_time_in_hours?: number
 }
 
 type Plan = {
@@ -224,6 +225,12 @@ function App() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, Record<number, number>>>(() => getStoredQuizState().answers)
   const [quizResults, setQuizResults] = useState<Record<string, QuizResult>>(() => getStoredQuizState().results)
   const [quizError, setQuizError] = useState('')
+  const [materialModalChapterId, setMaterialModalChapterId] = useState<string | null>(null)
+  const [newMaterialTitle, setNewMaterialTitle] = useState('')
+  const [newMaterialLink, setNewMaterialLink] = useState('')
+  const [newMaterialType, setNewMaterialType] = useState('reference')
+  const [newMaterialHours, setNewMaterialHours] = useState('1')
+  const [materialError, setMaterialError] = useState('')
   const [optionsMessage, setOptionsMessage] = useState('')
   const dateInputRef = useRef<HTMLInputElement>(null)
   const importFileInputRef = useRef<HTMLInputElement>(null)
@@ -478,14 +485,43 @@ function App() {
   }
 
   function getEstimatedEndDate(plan: Plan) {
-    const timeframeMatch = plan.timeframe.match(/(\d+)/)
-    const timeframeCount = timeframeMatch ? Number(timeframeMatch[1]) : 0
     const startValue = plan.startDate === 'Today' ? new Date() : new Date(plan.startDate)
 
-    if (!Number.isFinite(timeframeCount) || Number.isNaN(startValue.getTime())) {
+    if (Number.isNaN(startValue.getTime())) {
       return '—'
     }
 
+    const totalLearningHours = (plan.chapters ?? []).reduce((total, chapter) => {
+      const chapterHours = Number(chapter.estimated_learning_time_in_hours)
+      return total + (Number.isFinite(chapterHours) && chapterHours > 0 ? chapterHours : 0)
+    }, 0)
+    const hoursPerDay = Number(plan.hours.match(/[\d.]+/)?.[0])
+
+    if (totalLearningHours > 0 && hoursPerDay > 0) {
+      const studyDaysRequired = Math.ceil(totalLearningHours / hoursPerDay)
+      const cadence = plan.cadence.toLowerCase()
+      const isStudyDay = (day: number) => cadence.includes('weekend')
+        ? day === 0 || day === 6
+        : cadence.includes('workweek')
+          ? day >= 1 && day <= 5
+          : true
+
+      let studyDaysScheduled = 0
+      while (studyDaysScheduled < studyDaysRequired) {
+        if (isStudyDay(startValue.getDay())) {
+          studyDaysScheduled += 1
+        }
+        if (studyDaysScheduled < studyDaysRequired) {
+          startValue.setDate(startValue.getDate() + 1)
+        }
+      }
+
+      return formatDateLabel(startValue)
+    }
+
+    const timeframeMatch = plan.timeframe.match(/(\d+)/)
+    const timeframeCount = timeframeMatch ? Number(timeframeMatch[1]) : 0
+    if (!Number.isFinite(timeframeCount)) return '—'
     if (plan.timeframe.includes('days')) {
       startValue.setDate(startValue.getDate() + timeframeCount)
       return formatDateLabel(startValue)
@@ -586,6 +622,80 @@ function App() {
     })
   }
 
+  function openAddMaterial(chapterId: string) {
+    setMaterialModalChapterId(chapterId)
+    setNewMaterialTitle('')
+    setNewMaterialLink('')
+    setNewMaterialType('reference')
+    setNewMaterialHours('1')
+    setMaterialError('')
+  }
+
+  function addStudyMaterial(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedPlan || !materialModalChapterId) return
+
+    if (!newMaterialTitle.trim()) {
+      setMaterialError('Enter a title for this study material.')
+      return
+    }
+
+    let parsedLink: URL
+    try {
+      parsedLink = new URL(newMaterialLink.trim())
+    } catch {
+      setMaterialError('Enter a valid HTTP or HTTPS link.')
+      return
+    }
+
+    if (!['http:', 'https:'].includes(parsedLink.protocol) || parsedLink.username || parsedLink.password) {
+      setMaterialError('Enter a valid HTTP or HTTPS link.')
+      return
+    }
+
+    const estimatedHours = Number(newMaterialHours)
+    if (!Number.isFinite(estimatedHours) || estimatedHours < 0.25 || estimatedHours > 100) {
+      setMaterialError('Estimated learning time must be between 0.25 and 100 hours.')
+      return
+    }
+
+    const material: StudyMaterial = {
+      title: newMaterialTitle.trim(),
+      link: parsedLink.toString(),
+      type: newMaterialType,
+    }
+    const nextChapters = (selectedPlan.chapters ?? []).map((chapter) => chapter.id === materialModalChapterId
+      ? {
+          ...chapter,
+          estimated_learning_time_in_hours: chapter.estimated_learning_time_in_hours + estimatedHours,
+          study_materials: [...chapter.study_materials, material],
+          topics: [...chapter.topics, {
+            id: `${chapter.id}-material-${chapter.topics.length}`,
+            ...material,
+            completed: false,
+            estimated_learning_time_in_hours: estimatedHours,
+          }],
+        }
+      : chapter)
+
+    const updatedPlan = {
+      ...selectedPlan,
+      chapters: nextChapters,
+      progress: computePlanProgress(nextChapters),
+    }
+    setPlans((currentPlans) => currentPlans.map((plan) => plan.id === updatedPlan.id ? updatedPlan : plan))
+    setSelectedPlan(updatedPlan)
+    setQuizAnswers((currentAnswers) => {
+      const { [materialModalChapterId]: _removedAnswers, ...remainingAnswers } = currentAnswers
+      return remainingAnswers
+    })
+    setQuizResults((currentResults) => {
+      const { [materialModalChapterId]: _removedResult, ...remainingResults } = currentResults
+      return remainingResults
+    })
+    setMaterialModalChapterId(null)
+  }
+
   function openQuiz(chapterId: string) {
     setQuizModalChapterId(chapterId)
     setQuizError('')
@@ -633,6 +743,9 @@ function App() {
   const quizModalChapter = selectedPlan && quizModalChapterId
     ? selectedPlan.chapters?.find((item: ChapterProgress) => item.id === quizModalChapterId)
     : undefined
+  const materialModalChapter = selectedPlan && materialModalChapterId
+    ? selectedPlan.chapters?.find((item) => item.id === materialModalChapterId)
+    : undefined
 
   if (selectedPlan) {
     const chapters = selectedPlan.chapters ?? []
@@ -652,6 +765,34 @@ function App() {
             </button>
           </div>
         </nav>
+        {materialModalChapter && <div className="modal-overlay" onClick={() => setMaterialModalChapterId(null)}>
+          <form className="material-modal" onSubmit={addStudyMaterial} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="modal-close" onClick={() => setMaterialModalChapterId(null)} aria-label="Close add study material dialog">×</button>
+            <p className="section-marker">ADD TO CHAPTER</p>
+            <h3>{materialModalChapter.topic}</h3>
+            <label className="material-form-field">Title
+              <input value={newMaterialTitle} onChange={(event) => setNewMaterialTitle(event.target.value)} maxLength={200} required />
+            </label>
+            <label className="material-form-field">Link
+              <input type="url" value={newMaterialLink} onChange={(event) => setNewMaterialLink(event.target.value)} maxLength={2048} placeholder="https://..." required />
+            </label>
+            <div className="material-form-row">
+              <label className="material-form-field">Type
+                <select value={newMaterialType} onChange={(event) => setNewMaterialType(event.target.value)}>
+                  <option value="reference">Reference</option>
+                  <option value="video">Video</option>
+                  <option value="pdf">PDF</option>
+                  <option value="book">Book</option>
+                </select>
+              </label>
+              <label className="material-form-field">Estimated learning time (hours)
+                <input type="number" min="0.25" max="100" step="0.25" value={newMaterialHours} onChange={(event) => setNewMaterialHours(event.target.value)} required />
+              </label>
+            </div>
+            {materialError && <p className="api-error" role="alert">{materialError}</p>}
+            <button className="primary-button create-button" type="submit">Add study material <span>+</span></button>
+          </form>
+        </div>}
         {quizModalChapter && (() => {
           const chapter = quizModalChapter
           if (!Array.isArray(chapter.quiz) || chapter.quiz.length === 0) {
@@ -808,6 +949,7 @@ function App() {
                           </div>
                         })}
                       </div>
+                      <button className="secondary-button add-material-button" type="button" onClick={() => openAddMaterial(chapter.id)}>+ Add study material</button>
                       {isComplete && (
                         <button className="quiz-button" type="button" onClick={() => openQuiz(chapter.id)}>Quiz</button>
                       )}
