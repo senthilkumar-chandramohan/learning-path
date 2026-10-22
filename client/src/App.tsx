@@ -121,6 +121,14 @@ function getStoredQuizState() {
   }
 }
 
+function getPlanStartDate(startDate: string | undefined, chapters: ChapterProgress[] | undefined) {
+  if (startDate && startDate !== 'Today') {
+    return startDate
+  }
+
+  return chapters?.[0]?.planned_start_date || startDate || 'Today'
+}
+
 function getStoredPlans(): Plan[] {
   if (typeof window === 'undefined') {
     return []
@@ -140,6 +148,7 @@ function getStoredPlans(): Plan[] {
     return parsedPlans.map((plan) => ({
       ...plan,
       kind: plan.kind === 'interview' ? 'interview' : 'goals',
+      startDate: getPlanStartDate(plan.startDate, plan.chapters),
       chapters: Array.isArray(plan.chapters)
         ? plan.chapters.map((chapter: ChapterProgress, chapterIndex: number) => ({
             ...chapter,
@@ -347,6 +356,7 @@ function App() {
           }
 
           const existingIndex = mergedPlans.findIndex((plan) => plan.id === importedPlan.id)
+          importedPlan.startDate = getPlanStartDate(importedPlan.startDate, importedPlan.chapters)
           if (existingIndex >= 0) {
             mergedPlans[existingIndex] = importedPlan as Plan
             return
@@ -453,7 +463,7 @@ function App() {
         timeframe: activeBuilderTab === 'goals' ? `${timeframe} ${unit}` : `${interviewDays} days`,
         hours: `${hours} hrs / day`,
         cadence: (activeBuilderTab === 'goals' ? cadence : 'every day').replace(/^./, (letter) => letter.toUpperCase()),
-        startDate: startDate || 'Today',
+        startDate: startDate || learningPath.start_date,
         progress: 0,
         color: tileColors[plans.length % tileColors.length],
         modules: learningPath.chapters.map((chapter) => chapter.topic),
