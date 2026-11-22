@@ -66,6 +66,10 @@ test('buildLearningPathPrompt fills the template values', () => {
   assert.match(prompt, /starting 2026-09-10/) 
   assert.match(prompt, /Videos Only/) 
   assert.match(prompt, /3 to 10 distinct, valid study materials per chapter/)
+  assert.match(prompt, /prefer an individual video/)
+  assert.match(prompt, /playlist is acceptable only/)
+  assert.match(prompt, /Do not list an entire YouTube channel/)
+  assert.match(prompt, /Channel URLs are never acceptable/)
 })
 
 test('interview prompt frames job description as untrusted input and uses the deadline', () => {
@@ -140,4 +144,22 @@ test('validateLearningPath enforces the 3-to-10 study material range', () => {
   assert.doesNotThrow(() => validateLearningPath(createLearningPath(10)))
   assert.throws(() => validateLearningPath(createLearningPath(2)), /between 3 and 10/)
   assert.throws(() => validateLearningPath(createLearningPath(11)), /between 3 and 10/)
+})
+
+test('validateLearningPath rejects channel and search video URLs', () => {
+  const channelPath = createLearningPath(3)
+  channelPath.chapters[0].study_materials[0] = {
+    title: 'Topic channel',
+    link: 'https://www.youtube.com/@topic-channel',
+    type: 'video',
+  }
+  assert.throws(() => validateLearningPath(channelPath), /channels/)
+
+  const playlistPath = createLearningPath(3)
+  playlistPath.chapters[0].study_materials[0] = {
+    title: 'Topic playlist',
+    link: 'https://www.youtube.com/playlist?list=PL123',
+    type: 'video',
+  }
+  assert.doesNotThrow(() => validateLearningPath(playlistPath))
 })

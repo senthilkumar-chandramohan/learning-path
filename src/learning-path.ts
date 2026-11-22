@@ -155,6 +155,10 @@ Critical anti-hallucination instructions:
 - Never use placeholders, sample URLs, made-up domains, test domains, generic template links, or example.com-like values.
 - Every study_materials item must include a descriptive title and a valid https:// URL.
 - Keep the links directly relevant to ${payload.learning_medium} and the chapter topic.
+- For video study materials, prefer an individual video, lesson, lecture, or short talk that directly teaches the chapter topic.
+- A YouTube playlist is acceptable only when it is clearly dedicated to this chapter's subject and contains a focused, manageable sequence of lessons. Do not include a broad, oversized, unrelated, or general-purpose playlist; if there is no focused playlist, omit it rather than substituting a channel or catalog.
+- Do not list an entire YouTube channel, channel page, course catalog, search-results page, or any general collection or library page.
+- Prefer direct, stable video URLs. Channel URLs are never acceptable, and large general-purpose playlists should be omitted even if a few videos are relevant.
 - Provide 3 to 10 distinct, valid study materials per chapter. Choose as many as the chapter needs within this range; do not stop at 3 when additional useful resources are available, and never pad the list with weak or fabricated links.
 - The sample below is illustrative; its study_materials counts do not override the requirement to include 3 to 10 materials in every generated chapter.
 - Include only resources that are credible, official, or well-established.
@@ -271,6 +275,27 @@ export function validateLearningPath(response: LearningPathResponse): void {
     for (const material of chapter.study_materials) {
       if (!material || typeof material.link !== 'string' || !/^https?:\/\//i.test(material.link)) {
         throw new Error('Each study material must include a valid http(s) link.')
+      }
+
+      if (material.type === 'video') {
+        let url: URL
+        try {
+          url = new URL(material.link)
+        } catch {
+          throw new Error('Each video study material must include a valid URL.')
+        }
+
+        const host = url.hostname.toLowerCase()
+        const path = url.pathname.toLowerCase()
+        if (
+          (host === 'youtube.com' || host.endsWith('.youtube.com')) &&
+          (
+            /^\/(?:channel\/|c\/|user\/|@)/.test(path) ||
+            /^\/(?:results|search)(?:\/|$)/.test(path)
+          )
+        ) {
+          throw new Error('Video study materials must not link to YouTube channels, search results, or broad collections.')
+        }
       }
     }
   }
